@@ -1596,7 +1596,8 @@ bool CommandBufferAccessContext::ValidateDrawSubpassAttachment(const char *func_
 }
 
 void CommandBufferAccessContext::RecordDrawSubpassAttachment(const ResourceUsageTag &tag) {
-    current_renderpass_context_->RecordDrawSubpassAttachment(cb_state_->activeRenderPassBeginInfo.renderArea, tag);
+    current_renderpass_context_->RecordDrawSubpassAttachment(*cb_state_.get(), cb_state_->activeRenderPassBeginInfo.renderArea,
+                                                             tag);
 }
 
 bool CommandBufferAccessContext::ValidateNextSubpass(const char *func_name) const {
@@ -1646,15 +1647,19 @@ void CommandBufferAccessContext::RecordEndRenderPass(const RENDER_PASS_STATE &re
 bool RenderPassAccessContext::ValidateDrawSubpassAttachment(const SyncValidator &sync_state, const CMD_BUFFER_STATE &cmd,
                                                             const VkRect2D &render_area, const char *func_name) const {
     bool skip = false;
+    const auto *pPipe = GetCurrentPipelineFromCommandBuffer(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS);
+    if (!pPipe) {
+        return skip;
+    }
+    const auto &list = pPipe->fragmentShader_writable_output_location_list;
     const auto &subpass = rp_state_->createInfo.pSubpasses[current_subpass_];
     VkExtent3D extent = CastTo3D(render_area.extent);
     VkOffset3D offset = CastTo3D(render_area.offset);
-
     // Subpass's inputAttachment has been done in ValidateDispatchDrawDescriptorSet
-    if (subpass.colorAttachmentCount) {
+    if (subpass.colorAttachmentCount && !list.empty()) {
         if (subpass.pColorAttachments) {
             for (uint32_t i = 0; i < subpass.colorAttachmentCount; ++i) {
-                if (subpass.pColorAttachments[i].attachment == VK_ATTACHMENT_UNUSED) continue;
+                if (subpass.pColorAttachments[i].attachment == VK_ATTACHMENT_UNUSED || list.find(i) == list.end()) continue;
                 const IMAGE_VIEW_STATE *img_view_state = attachment_views_[subpass.pColorAttachments[i].attachment];
                 HazardResult hazard =
                     external_context_->DetectHazard(img_view_state, SYNC_COLOR_ATTACHMENT_OUTPUT_COLOR_ATTACHMENT_WRITE,
@@ -1670,7 +1675,7 @@ bool RenderPassAccessContext::ValidateDrawSubpassAttachment(const SyncValidator 
         }
         if (subpass.pResolveAttachments) {
             for (uint32_t i = 0; i < subpass.colorAttachmentCount; ++i) {
-                if (subpass.pResolveAttachments[i].attachment == VK_ATTACHMENT_UNUSED) continue;
+                if (subpass.pResolveAttachments[i].attachment == VK_ATTACHMENT_UNUSED || list.find(i) == list.end()) continue;
                 const IMAGE_VIEW_STATE *img_view_state = attachment_views_[subpass.pResolveAttachments[i].attachment];
                 HazardResult hazard =
                     external_context_->DetectHazard(img_view_state, SYNC_COLOR_ATTACHMENT_OUTPUT_COLOR_ATTACHMENT_WRITE,
@@ -1700,16 +1705,22 @@ bool RenderPassAccessContext::ValidateDrawSubpassAttachment(const SyncValidator 
     return skip;
 }
 
-void RenderPassAccessContext::RecordDrawSubpassAttachment(const VkRect2D &render_area, const ResourceUsageTag &tag) {
+void RenderPassAccessContext::RecordDrawSubpassAttachment(const CMD_BUFFER_STATE &cmd, const VkRect2D &render_area,
+                                                          const ResourceUsageTag &tag) {
+    const auto *pPipe = GetCurrentPipelineFromCommandBuffer(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS);
+    if (!pPipe) {
+        return;
+    }
+    const auto &list = pPipe->fragmentShader_writable_output_location_list;
     const auto &subpass = rp_state_->createInfo.pSubpasses[current_subpass_];
     VkExtent3D extent = CastTo3D(render_area.extent);
     VkOffset3D offset = CastTo3D(render_area.offset);
 
     // Subpass's inputAttachment has been done in RecordDispatchDrawDescriptorSet
-    if (subpass.colorAttachmentCount) {
+    if (subpass.colorAttachmentCount && !list.empty()) {
         if (subpass.pColorAttachments) {
             for (uint32_t i = 0; i < subpass.colorAttachmentCount; ++i) {
-                if (subpass.pColorAttachments[i].attachment == VK_ATTACHMENT_UNUSED) continue;
+                if (subpass.pColorAttachments[i].attachment == VK_ATTACHMENT_UNUSED || list.find(i) == list.end()) continue;
                 const IMAGE_VIEW_STATE *img_view_state = attachment_views_[subpass.pColorAttachments[i].attachment];
                 external_context_->UpdateAccessState(img_view_state, SYNC_COLOR_ATTACHMENT_OUTPUT_COLOR_ATTACHMENT_WRITE, offset,
                                                      extent, 0, tag);
@@ -1717,7 +1728,7 @@ void RenderPassAccessContext::RecordDrawSubpassAttachment(const VkRect2D &render
         }
         if (subpass.pResolveAttachments) {
             for (uint32_t i = 0; i < subpass.colorAttachmentCount; ++i) {
-                if (subpass.pResolveAttachments[i].attachment == VK_ATTACHMENT_UNUSED) continue;
+                if (subpass.pResolveAttachments[i].attachment == VK_ATTACHMENT_UNUSED || list.find(i) == list.end()) continue;
                 const IMAGE_VIEW_STATE *img_view_state = attachment_views_[subpass.pResolveAttachments[i].attachment];
                 external_context_->UpdateAccessState(img_view_state, SYNC_COLOR_ATTACHMENT_OUTPUT_COLOR_ATTACHMENT_WRITE, offset,
                                                      extent, 0, tag);
