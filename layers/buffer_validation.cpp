@@ -56,6 +56,9 @@ static VkImageSubresourceRange MakeImageFullRange(const VkImageCreateInfo &creat
     VkImageSubresourceRange init_range{0, 0, VK_REMAINING_MIP_LEVELS, 0, VK_REMAINING_ARRAY_LAYERS};
     if (FormatIsColor(format) || FormatIsMultiplane(format)) {
         init_range.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;  // Normalization will expand this for multiplane
+    } else if (FormatIsUndef(format)) {
+        // TODO: Check if pNext has VkExternalMemoryImageCreateInfo with valid externalFormat
+        init_range.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
     } else {
         init_range.aspectMask =
             (FormatHasDepth(format) ? VK_IMAGE_ASPECT_DEPTH_BIT : 0) | (FormatHasStencil(format) ? VK_IMAGE_ASPECT_STENCIL_BIT : 0);

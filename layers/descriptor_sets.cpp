@@ -857,7 +857,8 @@ bool CoreChecks::ValidateDescriptorSetBindingData(const CMD_BUFFER_STATE *cb_nod
                                     StringDescriptorReqViewType(reqs).c_str(), string_VkImageViewType(image_view_ci.viewType));
                             }
 
-                            if (!(reqs & image_view_state->descriptor_format_bits)) {
+                            if (!(reqs & image_view_state->descriptor_format_bits) &&
+                            !(image_view_ci.format == VK_FORMAT_UNDEFINED && image_view_state->samplerConversion != VK_NULL_HANDLE)) {
                                 // bad component type
                                 auto set = descriptor_set->GetSet();
                                 return LogError(set, kVUID_Core_DrawState_DescriptorSetNotUpdated,
