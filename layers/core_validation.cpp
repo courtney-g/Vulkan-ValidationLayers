@@ -2675,7 +2675,7 @@ bool CoreChecks::ValidateAllocateMemoryANDROID(const VkMemoryAllocateInfo *alloc
                              "vkAllocateMemory: The AHardwareBuffer_Desc's usage (0x%" PRIx64 ") is not compatible with Vulkan.",
                              ahb_desc.usage);
             }
-            if (0 == ahb_format_map_a2v.count(ahb_desc.format)) {
+            if (0 == ahb_desc.format) {
                 skip |=
                     LogError(device, "VUID-VkImportAndroidHardwareBufferInfoANDROID-buffer-01881",
                              "vkAllocateMemory: The AHardwareBuffer_Desc's format (0x%" PRIx32 ") is not compatible with Vulkan.",
